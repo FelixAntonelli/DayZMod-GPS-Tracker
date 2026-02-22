@@ -2,17 +2,25 @@ class TrackerReceiver extends Inventory_Base
 {
     const string TEXTURE_SCREEN_OFF = "\\Tracker\\Data\\screen_off_co.paa";
     const string TEXTURE_SCREEN_ON  = "\\Tracker\\Data\\screen_on_co.paa";
+	const string TEXTURE_SCREEN_PLAYER_50 = "\\Tracker\\Data\\screen_distance_50_CO.paa";
+	const string TEXTURE_SCREEN_PLAYER_200 = "\\Tracker\\Data\\screen_distance_200_CO.paa";
+	const string TEXTURE_SCREEN_PLAYER_600 = "\\Tracker\\Data\\screen_distance_600_CO.paa";
+	const string TEXTURE_SCREEN_PLAYER_1000 = "\\Tracker\\Data\\screen_distance_1000_CO.paa";
     const string SELECTION_NAME_SCREEN = "Screen";
 
-    protected float DETECTION_RADIUS_ENTER = 80.0;
-    protected float DETECTION_RADIUS_EXIT = 100.0;
+    protected const float DETECTION_RADIUS_ENTER = 1000.0;
+    protected const float DETECTION_RADIUS_EXIT = 1000.0;
 
     protected bool m_TargetFound;
+	protected bool m_InitialSearch = false;
     protected bool m_TrackerIsTracking;
+	
+	protected float m_TargetDistance = DETECTION_RADIUS_EXIT;
 
-    void BVP_TrackerReceiver()
+    void TrackerReceiver()
     {
         RegisterNetSyncVariableBool("m_TargetFound");
+		RegisterNetSyncVariableFloat("m_TargetDistance");
     }
 
     override void EEInit()
@@ -48,6 +56,10 @@ class TrackerReceiver extends Inventory_Base
         if (!g_Game.IsServer()) return;
         if (m_TrackerIsTracking) return;
         
+		m_InitialSearch = true;
+		
+        UpdateTrackingStatus();
+
         // Updated every 5 seconds, can change if we need to 
         m_TrackerIsTracking = true;
         GetGame().GetCallQueue(CALL_CATEGORY_SYSTEM).CallLater(this.TrackingTick, 5000, true);
@@ -65,6 +77,7 @@ class TrackerReceiver extends Inventory_Base
         if (m_TargetFound)
         {
             m_TargetFound = false;
+			m_TargetDistance = DETECTION_RADIUS_EXIT;
             SetSynchDirty();
         }
     }
@@ -78,7 +91,9 @@ class TrackerReceiver extends Inventory_Base
         }
         UpdateTrackingStatus();
     };
-
+	
+	
+	
     protected void UpdateTrackingStatus()
     {
         PlayerBase carrier = PlayerBase.Cast(GetHierarchyRootPlayer());
@@ -89,6 +104,7 @@ class TrackerReceiver extends Inventory_Base
         GetGame().GetPlayers(players);
         
         bool foundNear = false;
+		float dist = DETECTION_RADIUS_EXIT;
         
         float nearSq = DETECTION_RADIUS_ENTER * DETECTION_RADIUS_ENTER;
         if (m_TargetFound) nearSq = DETECTION_RADIUS_EXIT * DETECTION_RADIUS_EXIT;
@@ -98,11 +114,13 @@ class TrackerReceiver extends Inventory_Base
             PlayerBase pb = PlayerBase.Cast(p);
             if (!pb || !pb.IsAlive() || pb == carrier) continue;
             
-            float distSq = vector.DistanceSq(refPos, pb.GetPosition());
-            if (distSq <= nearSq)
+            float distTemp = Math.Sqrt(vector.DistanceSq(refPos, pb.GetPosition()));
+            if (distTemp <= dist)
             {
                 foundNear = true;
-                break;
+				dist = distTemp;
+				
+				//if( !m_InitialSearch ) break;
             }
         }
         
@@ -118,25 +136,31 @@ class TrackerReceiver extends Inventory_Base
                 eAIBase ai = eAIBase.Cast(obj);
                 if (ai && ai.IsAlive() && ai != carrier)
                 {
-                    float aiDistSq = vector.DistanceSq(refPos, ai.GetPosition());
-                    if (aiDistSq <= nearSq)
+                    float aiDistTemp = Math.Sqrt(vector.DistanceSq(refPos, ai.GetPosition()));
+                    if (aiDistTemp <= dist)
                     {
                         //Print("[BVP_Tracker] Expansion AI detected: " + ai.GetType() + " at distance " + Math.Sqrt(aiDistSq).ToString() + "m");
                         foundNear = true;
-                        break;
+						dist = aiDistTemp;
+						
+                        //if( !m_InitialSearch ) break;
                     }
                 }
             }
         }
         #endif
         
-        if (foundNear != m_TargetFound)
+        if (foundNear)
         {
             m_TargetFound = foundNear;
+			m_TargetDistance = dist;
+			m_InitialSearch = false;
             SetSynchDirty();
         }
     }
 
+	
+	
     override void SetActions()
 	{
 		super.SetActions();
@@ -150,39 +174,92 @@ class TrackerReceiver extends Inventory_Base
 		return GetCompEM() && GetCompEM().IsWorking();
 	}
 
-    void UpdateScreen()
+	void UpdateScreen()
+	{
+		UpdateScreenLocal();
+        SetSynchDirty();
+	}
+	
+    void UpdateScreenLocal()
     {
         int selectionIdx = GetHiddenSelectionIndex(SELECTION_NAME_SCREEN);
-        string texture = GetObjectTexture(selectionIdx);
+
         if (selectionIdx != -1)
         {
             if (IsTurnedOn())
             {
-                SetObjectTexture(selectionIdx, TEXTURE_SCREEN_ON);
+                if (m_TargetFound)
+                {
+					string textureName = "";
+                    if(m_TargetDistance <= 50.0)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_50;
+					}
+					else if(m_TargetDistance > 50.0 && m_TargetDistance <= 200)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_200;
+					}
+					else if(m_TargetDistance > 200.0 && m_TargetDistance <= 600)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_600;
+					}
+					else if(m_TargetDistance > 600.0 && m_TargetDistance <= 1000)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_1000;
+					}
+					else
+					{
+						textureName = TEXTURE_SCREEN_ON;
+					}
+					
+					SetObjectTexture(selectionIdx, textureName);
+                }
+                else
+                {
+                    SetObjectTexture(selectionIdx, TEXTURE_SCREEN_ON);
+                }
             }
             else
             {
                 SetObjectTexture(selectionIdx, TEXTURE_SCREEN_OFF);
             }
         }
-        
-        SetSynchDirty();
     }
 
     override void OnWorkStart()
     {
+        if (g_Game.IsServer())
+        {
+            StartTracking();
+        }
+        
         UpdateScreen();
     }
     
     override void OnWorkStop()
     {
+        if (g_Game.IsServer())
+        {
+            StopTracking();
+        }
+        
         UpdateScreen();
     }
+	
+	override void OnWork(float consumed_energy)
+	{
+		if (g_Game.IsServer())
+        {
+            return;
+        }
+        
+        UpdateScreenLocal();
+	}
     
     override void OnVariablesSynchronized()
     {
         super.OnVariablesSynchronized();
         
-        UpdateScreen();
+        UpdateScreenLocal();
     }
 }

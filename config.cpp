@@ -68,7 +68,7 @@ class CfgVehicles
 		scope = 2;
 		displayName = "Tracker Receiver";
 		descriptionShort = "A handheld GPS device used to track the location of escapies.";
-		model = "\Tracker\Model\tracker.p3d";
+		model = "\Tracker\Model\bvp_tracker.p3d";
 		itemSize[] = {1, 2};
 		rotationFlags = 17;
 		class EnergyManager
@@ -107,11 +107,11 @@ class CfgVehicles
 				position[]={0,0,0};
 				orientation[]={90,10,0};
 			};
-			class Hands
-            {
-                position[]={0,-0.02,0};
-                orientation[]={-65,-20,0};
-            };
+			// class Hands
+            // {
+            //     position[]={0,-0.02,0};
+            //     orientation[]={-65,-20,0};
+            // };
 		};
 	};
 };
