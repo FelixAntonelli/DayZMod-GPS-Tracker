@@ -23,6 +23,11 @@ class TrackerReceiver extends Inventory_Base
 		RegisterNetSyncVariableFloat("m_TargetDistance");
     }
 
+	PlayerBase GetCarrier()
+	{
+		return PlayerBase.Cast(GetHierarchyRootPlayer());
+	}
+	
     override void EEInit()
     {
         super.EEInit();
@@ -92,7 +97,34 @@ class TrackerReceiver extends Inventory_Base
         UpdateTrackingStatus();
     };
 	
-	
+	protected array<Param2<float, float>> FindTargets(array<Man> targets, array<TrackerReceiver> trackers)
+	{
+		map<TrackerReceiver, Param2<float, float>> returnMap = new map<TrackerReceiver, Param2<float, float>>();
+		foreach(TrackerReceiver tracker : trackers)
+		{
+			float currentDistance = FLT_MAX;
+			float angle = 0.0;
+			vector trackerPos = tracker.GetCarrier().GetPosition();
+			foreach(Man target : targets)
+			{
+				vector targetPos = target.GetPosition();
+				float dist = vector.DistanceSq(trackerPos, targetPos);
+				
+				if( dist < currentDistance )
+				{
+					currentDistance = dist;
+					float dot = vector.Dot(trackerPos, targetPos);
+					//x1*y2 - y1*x2 
+					float det = (trackerPos[0] * targetPos[1]) - (trackerPos[1] * targetPos[0]);
+					angle = Math.Atan2(-det, -dot) + Math.PI;
+				}
+			}
+			
+			
+			returnMap.Insert(tracker, new Param2<float, float>(currentDistance, angle));
+		}
+		return returnMap;
+	}
 	
     protected void UpdateTrackingStatus()
     {
