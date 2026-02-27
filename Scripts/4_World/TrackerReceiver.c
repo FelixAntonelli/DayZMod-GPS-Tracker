@@ -281,6 +281,7 @@ class TrackerReceiver extends Inventory_Base
         
         bool foundNear = false;
 		float dist = DETECTION_RADIUS_EXIT;
+		float dist = DETECTION_RADIUS_EXIT;
         
         float nearSq = DETECTION_RADIUS_ENTER * DETECTION_RADIUS_ENTER;
         if (m_TargetFound) nearSq = DETECTION_RADIUS_EXIT * DETECTION_RADIUS_EXIT;
@@ -292,8 +293,13 @@ class TrackerReceiver extends Inventory_Base
             
             float distTemp = Math.Sqrt(vector.DistanceSq(refPos, pb.GetPosition()));
             if (distTemp <= dist)
+            float distTemp = Math.Sqrt(vector.DistanceSq(refPos, pb.GetPosition()));
+            if (distTemp <= dist)
             {
                 foundNear = true;
+				dist = distTemp;
+				
+				//if( !m_InitialSearch ) break;
 				dist = distTemp;
 				
 				//if( !m_InitialSearch ) break;
@@ -314,9 +320,14 @@ class TrackerReceiver extends Inventory_Base
                 {
                     float aiDistTemp = Math.Sqrt(vector.DistanceSq(refPos, ai.GetPosition()));
                     if (aiDistTemp <= dist)
+                    float aiDistTemp = Math.Sqrt(vector.DistanceSq(refPos, ai.GetPosition()));
+                    if (aiDistTemp <= dist)
                     {
                         //Print("[BVP_Tracker] Expansion AI detected: " + ai.GetType() + " at distance " + Math.Sqrt(aiDistSq).ToString() + "m");
                         foundNear = true;
+						dist = aiDistTemp;
+						
+                        //if( !m_InitialSearch ) break;
 						dist = aiDistTemp;
 						
                         //if( !m_InitialSearch ) break;
@@ -327,13 +338,19 @@ class TrackerReceiver extends Inventory_Base
         #endif
         
         if (foundNear)
+        if (foundNear)
         {
             m_TargetFound = foundNear;
+			m_TargetDistance = dist;
+			m_InitialSearch = false;
 			m_TargetDistance = dist;
 			m_InitialSearch = false;
             SetSynchDirty();
         }
     }
+
+	
+	
 
 	
 	
@@ -357,8 +374,16 @@ class TrackerReceiver extends Inventory_Base
 	}
 	
     void UpdateScreenLocal()
+	void UpdateScreen()
+	{
+		UpdateScreenLocal();
+        SetSynchDirty();
+	}
+	
+    void UpdateScreenLocal()
     {
         int selectionIdx = GetHiddenSelectionIndex(SELECTION_NAME_SCREEN);
+
 
         if (selectionIdx != -1)
         {
@@ -419,11 +444,21 @@ class TrackerReceiver extends Inventory_Base
             StartTracking();
         }
         
+        if (g_Game.IsServer())
+        {
+            StartTracking();
+        }
+        
         UpdateScreen();
     }
     
     override void OnWorkStop()
     {
+        if (g_Game.IsServer())
+        {
+            StopTracking();
+        }
+        
         if (g_Game.IsServer())
         {
             StopTracking();
@@ -441,11 +476,23 @@ class TrackerReceiver extends Inventory_Base
         
         UpdateScreenLocal();
 	}
+    }
+	
+	override void OnWork(float consumed_energy)
+	{
+		if (g_Game.IsServer())
+        {
+            return;
+        }
+        
+        UpdateScreenLocal();
+	}
     
     override void OnVariablesSynchronized()
     {
         super.OnVariablesSynchronized();
         
+        UpdateScreenLocal();
         UpdateScreenLocal();
     }
 }
