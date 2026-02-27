@@ -190,10 +190,20 @@ class TrackerReceiver extends Inventory_Base
 	const string TEXTURE_SCREEN_PLAYER_600  = "\\Tracker\\Data\\screen_distance_600_CO.paa";
 	const string TEXTURE_SCREEN_PLAYER_1000 = "\\Tracker\\Data\\screen_distance_1000_CO.paa";
     const string SELECTION_NAME_SCREEN      = "Screen";
+    const string TEXTURE_SCREEN_OFF         = "\\Tracker\\Data\\screen_off_co.paa";
+    const string TEXTURE_SCREEN_ON          = "\\Tracker\\Data\\screen_on_co.paa";
+	const string TEXTURE_SCREEN_PLAYER_50   = "\\Tracker\\Data\\screen_distance_50_CO.paa";
+	const string TEXTURE_SCREEN_PLAYER_200  = "\\Tracker\\Data\\screen_distance_200_CO.paa";
+	const string TEXTURE_SCREEN_PLAYER_600  = "\\Tracker\\Data\\screen_distance_600_CO.paa";
+	const string TEXTURE_SCREEN_PLAYER_1000 = "\\Tracker\\Data\\screen_distance_1000_CO.paa";
+    const string SELECTION_NAME_SCREEN      = "Screen";
 
     protected static const float DETECTION_RADIUS_ENTER = 1000.0;
     protected static const float DETECTION_RADIUS_EXIT = 1000.0;
+    protected static const float DETECTION_RADIUS_ENTER = 1000.0;
+    protected static const float DETECTION_RADIUS_EXIT = 1000.0;
 
+	protected bool m_InitialSearch = false;
 	protected bool m_InitialSearch = false;
     protected bool m_TrackerIsTracking;
 	
@@ -203,8 +213,24 @@ class TrackerReceiver extends Inventory_Base
 	protected float m_TargetAngle = -1;
 
     void TrackerReceiver()
+	
+	///---Synced Members---///
+    protected bool m_TargetFound = false;
+	protected float m_TargetDistance = FLT_MAX;
+	protected float m_TargetAngle = -1;
+
+    void TrackerReceiver()
     {
         RegisterNetSyncVariableBool("m_TargetFound");
+		RegisterNetSyncVariableFloat("m_TargetDistance");
+		RegisterNetSyncVariableFloat("m_TargetAngle");
+    }
+
+	PlayerBase GetCarrier()
+	{
+		return PlayerBase.Cast(GetHierarchyRootPlayer());
+	}
+	
 		RegisterNetSyncVariableFloat("m_TargetDistance");
 		RegisterNetSyncVariableFloat("m_TargetAngle");
     }
@@ -250,10 +276,17 @@ class TrackerReceiver extends Inventory_Base
         m_TrackerIsTracking = true;
 		
 		TrackerManager.Instance().RegisterTracker(this);
+		
+		TrackerManager.Instance().RegisterTracker(this);
     }
 
     protected void StopTracking()
     {
+        if (!g_Game.IsServer())	return;
+		
+		m_TrackerIsTracking = false;
+		
+		TrackerManager.Instance().UnregisterTracker(this);
         if (!g_Game.IsServer())	return;
 		
 		m_TrackerIsTracking = false;
@@ -267,8 +300,16 @@ class TrackerReceiver extends Inventory_Base
 		//	m_TargetDistance = FLT_MAX;
         //    SetSynchDirty();
        // }
+        //if (m_TargetFound)
+        //{
+        //    m_TargetFound = false;
+		//	m_TargetDistance = FLT_MAX;
+        //    SetSynchDirty();
+       // }
     }
 
+    
+	
     
 	
     protected void UpdateTrackingStatus()
@@ -396,12 +437,54 @@ class TrackerReceiver extends Inventory_Base
                 {
                     SetObjectTexture(selectionIdx, TEXTURE_SCREEN_ON);
                 }
+            {
+                if (m_TargetFound)
+                {
+					ErrorEx(string.Format("Angle to target is %f", m_TargetAngle ), ErrorExSeverity.WARNING);
+					string textureName = "";
+                    if(m_TargetDistance <= 50.0)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_50;
+					}
+					else if(m_TargetDistance > 50.0 && m_TargetDistance <= 200)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_200;
+					}
+					else if(m_TargetDistance > 200.0 && m_TargetDistance <= 600)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_600;
+					}
+					else if(m_TargetDistance > 600.0 && m_TargetDistance <= 1000)
+					{
+						textureName = TEXTURE_SCREEN_PLAYER_1000;
+					}
+					else
+					{
+						textureName = TEXTURE_SCREEN_ON;
+					}
+					
+					SetObjectTexture(selectionIdx, textureName);
+                }
+                else
+                {
+                    SetObjectTexture(selectionIdx, TEXTURE_SCREEN_ON);
+                }
             }
             else
             {
                 SetObjectTexture(selectionIdx, TEXTURE_SCREEN_OFF);
             }
         }
+    }
+	
+	void SetTrackingInfo(float distance, float angle)
+	{
+		m_TargetFound = true;
+		m_TargetDistance = distance;
+		m_TargetAngle = angle;
+		
+		SetSynchDirty();
+	}
     }
 	
 	void SetTrackingInfo(float distance, float angle)
